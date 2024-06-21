@@ -5,19 +5,40 @@ const jwt = require("jsonwebtoken");
 const cookieParser = require("cookie-parser");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 
-const port = process.env.PORT || 3000;
 const app = express();
+const port = process.env.PORT || 3000;
 
 // Middleware
 app.use(
   cors({
-    origin: ["http://localhost:5173"],
+    origin: ["http://localhost:5173", "http://localhost:5174"],
     credentials: true,
   })
 );
 app.use(express.json());
 app.use(cookieParser());
 
+// Middleware
+const logger = async (req, res, next) => {
+  console.log("LogInfo:", req.method, req.originalUrl);
+  next();
+};
+
+const verifyToken = async (req, res, next) => {
+  const token = req?.cookies?.token;
+  console.log("token in the middleware:", token);
+  if (!token) {
+    return res.status(401).send({ message: "Nott authorized" });
+  }
+  jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (error, decoded) => {
+    if (error) {
+      console.log(error);
+      return res.status(401).send({ message: "Noty authorized" });
+    }
+    req.user = decoded;
+    next();
+  });
+};
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.x53s3dr.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
@@ -49,9 +70,16 @@ async function run() {
         .cookie("token", token, {
           httpOnly: true,
           secure: false,
-          //   sameSite: "none",
+          // sameSite: "none",
         })
         .send({ success: true });
+    });
+
+    app.post("/logout", async (req, res) => {
+      const user = req.body;
+      console.log(user);
+      console.log("logging out", user);
+      res.clearCookie("token", { maxAge: 0 }).send({ success: true });
     });
 
     // Service related API
@@ -72,8 +100,13 @@ async function run() {
     });
 
     // Bookings
-    app.get("/bookings", async (req, res) => {
-        console.log(req.cookies)
+    app.get("/bookings", logger, verifyToken, async (req, res) => {
+      // console.log("cookkkies", req.cookies);
+      // console.log("user in valid token", req.user);
+      if (req.query.email !== req.user.email) {
+        return res.status(403).send({ message: "forbidden access" });
+      }
+
       let query = {};
       if (req.query?.email) {
         query = { email: req.query.email };
