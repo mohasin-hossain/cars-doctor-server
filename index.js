@@ -28,12 +28,12 @@ const verifyToken = async (req, res, next) => {
   const token = req?.cookies?.token;
   console.log("token in the middleware:", token);
   if (!token) {
-    return res.status(401).send({ message: "Nott authorized" });
+    return res.status(401).send({ message: "Not authorized" });
   }
   jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (error, decoded) => {
     if (error) {
       console.log(error);
-      return res.status(401).send({ message: "Noty authorized" });
+      return res.status(401).send({ message: "Not authorized" });
     }
     req.user = decoded;
     next();
@@ -84,7 +84,26 @@ async function run() {
 
     // Service related API
     app.get("/services", async (req, res) => {
-      const cursor = serviceCollection.find();
+      const filter = req.query;
+      console.log(filter);
+      let query = {};
+
+      if (filter.minPrice >= 0 && filter.maxPrice > 0) {
+        const minPrice = parseInt(req.query.minPrice);
+        const maxPrice = parseInt(req.query.maxPrice);
+        console.log(filter);
+        query = {
+          price: {
+            $lte: maxPrice,
+            $gte: minPrice,
+          },
+        };
+      }
+
+      const options = {
+        sort: { price: filter.sort === "asc" ? 1 : -1 },
+      };
+      const cursor = serviceCollection.find(query, options);
       const result = await cursor.toArray();
       res.send(result);
     });
@@ -101,8 +120,8 @@ async function run() {
 
     // Bookings
     app.get("/bookings", logger, verifyToken, async (req, res) => {
-      // console.log("cookkkies", req.cookies);
-      // console.log("user in valid token", req.user);
+      // console.log("Token owner info:", req.user);
+      // console.log("cookies", req.cookies);
       if (req.query.email !== req.user.email) {
         return res.status(403).send({ message: "forbidden access" });
       }
