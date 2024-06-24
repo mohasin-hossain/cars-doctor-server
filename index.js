@@ -86,7 +86,12 @@ async function run() {
     app.get("/services", async (req, res) => {
       const filter = req.query;
       console.log(filter);
-      let query = {};
+      let query = {
+        title: {
+          $regex: filter.search,
+          $options: "i",
+        },
+      };
 
       if (filter.minPrice >= 0 && filter.maxPrice > 0) {
         const minPrice = parseInt(req.query.minPrice);
@@ -96,6 +101,10 @@ async function run() {
           price: {
             $lte: maxPrice,
             $gte: minPrice,
+          },
+          title: {
+            $regex: filter.search,
+            $options: "i",
           },
         };
       }
